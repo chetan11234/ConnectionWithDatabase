@@ -9,7 +9,6 @@ const port = 3000;
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
-let dbCountries;
 const db = new pg.Client({
   user: "postgres",
   database: "World",
@@ -19,36 +18,54 @@ const db = new pg.Client({
 });
 
 db.connect();
-db.query("SELECT country_code from visited_countries", (err, res) => {
-  if (err) {
-    console.log("Error in fetching data : " + err.message);
-  } else {
-    dbCountries = res.rows;
-  }
-})
+
+async function getUserQuery(countryName) {
+  const result = await db.query('SELECT country_code FROM countries WHERE country_name = $1', [countryName]);
+  console.log(result.rows);
+  return result.rows;
+}
+async function isDuplicate(countryCode) {
+  const result = await db.query('SELECT country_code from visited_countries WHERE country_code = $1', [countryCode]);
+  if (result.rows.length != 0) return true;
+  else return false;
+}
+
+let error = "";
+
 app.get("/", async (req, res) => {
 
-  // console.log(dbCountries);
+  if (error === "") {
+    let dbCountries = await db.query("SELECT country_code from visited_countries");
+    res.render("index.ejs", { total: dbCountries.rows.length, countries: dbCountries.rows });
+  } else {
+    let dbCountries = await db.query("SELECT country_code from visited_countries");
+    console.log(dbCountries);
+    res.render("index.ejs", { total: dbCountries.rows.length, countries: dbCountries.rows, error: error });
+  }
 
-  console.log("in the get http method.");
-  res.render("index.ejs", { total: dbCountries.length, countries: dbCountries });
 });
 
 app.post("/add", async (req, res) => {
-  const country = req.body.country;
-  let country_code;
-  const query = `SELECT country_code FROM countries WHERE country_name ='${country}';`;
-  console.log(query);
-  await db.query(query, (err, res) => {
-    if (err) {
-      console.log("Error in fetching data : " + err.message);
+  const countryName = req.body.country;
+  let country_codes;
+  country_codes = await getUserQuery(countryName);
+  if (country_codes.length === 0) {
+    error = "Either this country does not exist or you have made spelling mistake.";
+    res.redirect("/");
+  } else {
+    const isDupli = await isDuplicate(country_codes[0].country_code);
+    if (country_codes.length === 1 && !isDupli) {
+      let country_code = country_codes[0].country_code;
+      console.log(country_code);
+      await db.query('INSERT INTO visited_countries (country_code) VALUES ($1)', [country_code]);
+      error = "";
+      res.redirect("/");
     } else {
-      country_code = res.rows;
+      error = "This country is already travelled by you.";
+      res.redirect("/");
     }
-  });
-  console.log(country_code);
-  // db.query("INSERT INTO visited_countries (country_code) VALUES ($1)", [country_code]);
-  // res.redirect("/");
+  }
+
 });
 
 app.listen(port, () => {
