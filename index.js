@@ -6,10 +6,10 @@ const app = express();
 const port = 3000;
 
 const db = new pg.Client({
-  user: "laterAddEnv",
-  host: "laterAddEnv",
-  database: "laterAddEnv",
-  password: "laterAddEnv",
+  user: "lateraddEnv",
+  host: "lateraddEnv",
+  database: "lateraddEnv",
+  password: "lateraddEnv",
   port: 5432,
 });
 db.connect();
